@@ -384,7 +384,7 @@ def lector_ofertas(driver):
     
 def siguiente_pagina(driver):
     try:
-        # guarda el primer <a> actual (antes del click)
+        # Guarda el primer <a> para comparar
         first_a = driver.find_element(By.XPATH, "//a[contains(@class,'js-offer-title')]")
         btn_siguiente = driver.find_element(By.XPATH, "//ul[contains(@class,'pagination')]//li//a//i[contains(@class,'fa-angle-right')]")
         li_contenedor = driver.find_element(By.XPATH, "//ul[contains(@class,'pagination')]//li//a//i[contains(@class,'fa-angle-right')]/ancestor::li")
@@ -393,7 +393,7 @@ def siguiente_pagina(driver):
 
         driver.execute_script("arguments[0].click();", btn_siguiente)
 
-        # 🔹 espera a que se “muera” el primer link viejo y cargue el nuevo DOM
+        # Esperar al cierre del primer DOM
         WebDriverWait(driver, TIME_LONG).until(EC.staleness_of(first_a))
         WebDriverWait(driver, TIME_LONG).until(
             EC.presence_of_all_elements_located((By.XPATH, "//a[contains(@class,'js-offer-title')]"))

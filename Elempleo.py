@@ -12,7 +12,7 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
 
 # URLS
-URL = "https://www.elempleo.com/co/ofertas-empleo/?Salaries=menos-1-millon:3-35-millones:35-4-millones:45-55-millones:6-8-millones:10-125-millones&PublishDate=hoy"
+URL = "https://www.elempleo.com/co/ofertas-empleo/?PublishDate=hoy"
 # URL = "https://www.elempleo.com/co/ofertas-empleo/?PublishDate=hace-2-semanas"
 
 
@@ -73,7 +73,7 @@ def setup_driver():
 
     options = webdriver.ChromeOptions()
     options.add_experimental_option("prefs", prefs)
-    options.add_argument("--headless")
+    # options.add_argument("--headless")
     options.add_argument("--ignore-certificate-errors")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
@@ -285,6 +285,7 @@ def lector_ofertas(driver):
     global ofertas_procesadas
     
     try:
+        WebDriverWait(driver, TIME_MED).until(lambda d: d.execute_script("return document.readyState") == "complete")
         label.config(text="Buscando ofertas...")
         ofertas = WebDriverWait(driver, TIME_LIST).until(
             EC.presence_of_all_elements_located((By.XPATH, "//a[contains(@class, 'text-ellipsis js-offer-title')]"))
@@ -300,13 +301,13 @@ def lector_ofertas(driver):
         enlaces_ofertas = []
         for i, oferta in enumerate(ofertas):
             try:
-                enlace = oferta.get_attribute("href")
+                enlace = (oferta.get_dom_attribute("href") or oferta.get_attribute("href") or "").strip()
                 if enlace and enlace not in ofertas_procesadas:
                     enlaces_ofertas.append({
                         'enlace': enlace,
                         'posicion': i + 1
                     })
-                    ofertas_procesadas.add(enlace)
+                    # ofertas_procesadas.add(enlace)
                 else:
                     print(f"Oferta {i+1}: Enlace vacío o ya procesada")
             except Exception as e:
@@ -344,6 +345,7 @@ def lector_ofertas(driver):
                 try:
                     datos_oferta = extraer_info_oferta(driver)
                     escritura_datos(*datos_oferta)
+                    ofertas_procesadas.add(enlace)
                 except Exception as e:
                     print(f"Error WebDriver en oferta {posicion}: {str(e)}")
                 
@@ -382,16 +384,21 @@ def lector_ofertas(driver):
     
 def siguiente_pagina(driver):
     try:
+        # guarda el primer <a> actual (antes del click)
+        first_a = driver.find_element(By.XPATH, "//a[contains(@class,'js-offer-title')]")
         btn_siguiente = driver.find_element(By.XPATH, "//ul[contains(@class,'pagination')]//li//a//i[contains(@class,'fa-angle-right')]")
         li_contenedor = driver.find_element(By.XPATH, "//ul[contains(@class,'pagination')]//li//a//i[contains(@class,'fa-angle-right')]/ancestor::li")
         if "disabled" in li_contenedor.get_attribute("class").split():
             return False
-        else:
-            driver.execute_script("arguments[0].click();", btn_siguiente)
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.XPATH, "//div[@class='result-item']//a"))
-            )
-            return True
+
+        driver.execute_script("arguments[0].click();", btn_siguiente)
+
+        # 🔹 espera a que se “muera” el primer link viejo y cargue el nuevo DOM
+        WebDriverWait(driver, TIME_LONG).until(EC.staleness_of(first_a))
+        WebDriverWait(driver, TIME_LONG).until(
+            EC.presence_of_all_elements_located((By.XPATH, "//a[contains(@class,'js-offer-title')]"))
+        )
+        return True
     except NoSuchElementException:
         return False
 
